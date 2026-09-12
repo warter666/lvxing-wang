@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旅行汪 · 你的旅行小狗</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐕</text></svg>">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<style>
+:root{
+  --bg:#fdf6ec; --card:#fffdf9; --ink:#4a3b2a; --ink-soft:#8a7a63;
+  --accent:#f4a83d; --accent-deep:#e8892b; --grass:#8fc07a; --grass-deep:#5f9a4c;
+  --bubble:#fff; --line:#eadfce; --danger:#d96a5a;
+  --radius:16px; --shadow:0 4px 14px rgba(120,90,40,.12);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Segoe UI Emoji",sans-serif;
+  background:var(--bg); color:var(--ink); min-height:100vh;
+  background-image:radial-gradient(#f0e3cf 1.5px, transparent 1.5px);
+  background-size:26px 26px;
+}
+button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
+input{font-family:inherit;}
+
+/* ===== 头部 ===== */
+header{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;
+  padding:18px 26px; background:linear-gradient(180deg,#fff8ea,#fdf3dd);
+  border-bottom:3px dashed var(--line);
+}
+.logo{display:flex; align-items:center; gap:12px;}
+.logo .dog-face{font-size:44px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.15));}
+.logo h1{font-size:26px; letter-spacing:2px;}
+.logo h1 span{color:var(--accent-deep);}
+.logo p{font-size:12px; color:var(--ink-soft);}
+.header-tools{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.dog-name-wrap{
+  display:flex; align-items:center; gap:6px; background:var(--card);
+  border:2px solid var(--line); border-radius:999px; padding:4px 6px 4px 14px;
+}
+.dog-name-wrap input{
+  border:none; outline:none; background:none; width:90px; font-size:14px; color:var(--ink); font-weight:600;
+}
+.avatar-pick{display:flex; gap:2px;}
+.avatar-pick button{font-size:20px; padding:3px 4px; border-radius:50%; transition:.15s;}
+.avatar-pick button.on{background:var(--accent); transform:scale(1.18);}
+.btn{
+  padding:9px 18px; border-radius:999px; font-size:14px; font-weight:600;
+  background:var(--card); border:2px solid var(--line); transition:.15s;
+}
+.btn:hover{border-color:var(--accent); transform:translateY(-1px);}
+.btn.primary{background:var(--accent); border-color:var(--accent-deep); color:#fff; box-shadow:var(--shadow);}
+.btn.primary:hover{background:var(--accent-deep);}
+.btn.big{font-size:17px; padding:13px 34px; letter-spacing:1px;}
+.btn:disabled{opacity:.45; cursor:not-allowed; transform:none;}
+
+/* ===== 主体 ===== */
+main{max-width:1200px; margin:0 auto; padding:22px 26px 80px;}
+.upload-zone{
+  border:3px dashed var(--accent); border-radius:var(--radius);
+  background:rgba(255,253,249,.8); text-align:center; padding:34px 20px;
+  cursor:pointer; transition:.2s; margin-bottom:20px;
+}
+.upload-zone:hover,.upload-zone.drag{background:#fff3da; transform:scale(1.008);}
+.upload-zone .big-ico{font-size:46px; display:block; margin-bottom:8px; animation:bob 2.4s ease-in-out infinite;}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.upload-zone h2{font-size:18px; margin-bottom:4px;}
+.upload-zone p{font-size:13px; color:var(--ink-soft); line-height:1.7;}
+.upload-zone p b{color:var(--accent-deep);}
+#fileInput{display:none;}
+
+.layout{display:grid; grid-template-columns:minmax(320px,1fr) minmax(340px,1.2fr); gap:20px; align-items:start;}
+@media (max-width:860px){.layout{grid-template-columns:1fr;}}
+
+.panel{
+  background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+  border:2px solid var(--line); overflow:hidden;
+}
+.panel-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; background:#fbeed6; border-bottom:2px solid var(--line);
+  font-weight:700; font-size:15px;
+}
+.panel-head .hint{font-size:12px; color:var(--ink-soft); font-weight:400;}
+
+/* 照片站点列表 */
+.stops{max-height:560px; overflow:auto; padding:10px;}
+.stops::-webkit-scrollbar{width:8px;}
+.stops::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+.stop-card{
+  display:flex; gap:10px; padding:10px; border:2px solid var(--line); border-radius:12px;
+  background:#fff; margin-bottom:10px; align-items:center; position:relative;
+}
+.stop-card .idx{
+  width:26px; height:26px; min-width:26px; border-radius:50%; background:var(--accent);
+  color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;
+}
+.stop-card img{width:64px; height:64px; min-width:64px; object-fit:cover; border-radius:8px; border:1px solid var(--line); background:#eee;}
+.stop-card .info{flex:1; min-width:0;}
+.stop-card .info input{
+  width:100%; border:none; border-bottom:1.5px dashed var(--line); background:none;
+  font-size:14px; font-weight:600; color:var(--ink); padding:2px 0; outline:none;
+}
+.stop-card .info input:focus{border-bottom-color:var(--accent);}
+.stop-card .meta{font-size:11px; color:var(--ink-soft); margin-top:4px; display:flex; gap:8px; flex-wrap:wrap;}
+.stop-card .meta .bark{color:var(--accent-deep);}
+.stop-card .ops{display:flex; flex-direction:column; gap:2px;}
+.stop-card .ops button{font-size:13px; padding:2px 6px; border-radius:6px; color:var(--ink-soft);}
+.stop-card .ops button:hover{background:#f6e8cf; color:var(--ink);}
+.stop-card .ops .del:hover{background:#fde4de; color:var(--danger);}
+.empty-tip{padding:30px 10px; text-align:center; color:var(--ink-soft); font-size:13px; line-height:2;}
+
+/* 地图与统计 */
+#map{height:330px; width:100%; background:#e8e0d0;}
+.map-fallback{
+  height:330px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:var(--ink-soft); font-size:13px; gap:8px; text-align:center; padding:20px;
+}
+.map-fallback .pawline{font-size:24px; letter-spacing:6px;}
+.stats{
+  display:flex; gap:0; border-top:2px solid var(--line); background:#fbf3e3;
+  flex-wrap:wrap;
+}
+.stat{flex:1; min-width:90px; text-align:center; padding:12px 6px; border-right:2px dashed var(--line);}
+.stat:last-child{border-right:none;}
+.stat .num{font-size:20px; font-weight:800; color:var(--accent-deep);}
+.stat .lbl{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+
+/* 游记 */
+.travelogue{padding:16px 18px; font-size:14px; line-height:2;}
+.travelogue p{margin-bottom:8px;}
+.travelogue .voice{color:var(--ink-soft); font-size:12px; margin-bottom:10px;}
+.travelogue .paw-divider{text-align:center; color:var(--accent); letter-spacing:8px; margin:6px 0;}
+.travelogue .bark-line{color:#b98a3c; font-style:italic;}
+
+/* ===== 回放舞台 ===== */
+#stage{
+  position:fixed; inset:0; z-index:1000; display:none;
+  background:linear-gradient(180deg,#2c2317 0%,#3d2f1c 55%,#54431f 100%);
+  overflow:hidden; user-select:none;
+}
+#stage.on{display:block;}
+#stage .stars{position:absolute; inset:0; pointer-events:none;
+  background-image:radial-gradient(#fff8 1.2px, transparent 1.2px),radial-gradient(#fff5 1px, transparent 1px);
+  background-size:220px 160px,120px 90px; animation:twinkle 4s linear infinite alternate;}
+@keyframes twinkle{from{opacity:.4}to{opacity:.9}}
+.stage-top{
+  position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center;
+  padding:14px 20px; color:#f4e8c8; font-size:14px; z-index:5;
+}
+.stage-main{position:absolute; inset:0 0 150px 0; display:flex; align-items:center; justify-content:center;}
+.polaroid{
+  background:#fff; padding:14px 14px 18px; border-radius:6px; max-width:min(72vw,520px);
+  box-shadow:0 18px 50px rgba(0,0,0,.55); transform:rotate(-2deg);
+  animation:pop .45s cubic-bezier(.2,1.4,.4,1);
+  position:relative;
+}
+@keyframes pop{from{transform:scale(.5) rotate(-8deg); opacity:0}to{transform:scale(1) rotate(-2deg); opacity:1}}
+.polaroid img{width:100%; max-height:56vh; object-fit:contain; border-radius:4px; display:block; background:#eee;}
+.polaroid .cap{font-size:16px; font-weight:700; color:#5a4a32; margin-top:10px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.polaroid .cap .t{font-weight:400; font-size:12px; color:#9a8a70; align-self:center;}
+/* 狗 */
+.dog-zone{
+  position:absolute; bottom:150px; left:0; right:0; height:120px; pointer-events:none; z-index:6;
+}
+.dog{
+  position:absolute; bottom:0; left:6%; font-size:72px; line-height:1;
+  filter:drop-shadow(0 6px 8px rgba(0,0,0,.4));
+  transition:left 1.6s cubic-bezier(.45,.05,.55,.95);
+}
+.dog.walking{animation:trot .32s ease-in-out infinite;}
+@keyframes trot{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-10px) rotate(3deg)}}
+.bubble{
+  position:absolute; bottom:96px; left:calc(6% + 46px); background:var(--bubble); color:#5a4a32;
+  padding:8px 14px; border-radius:16px; font-size:16px; font-weight:700; white-space:nowrap;
+  box-shadow:0 4px 12px rgba(0,0,0,.3); opacity:0; transform:scale(.4); transform-origin:bottom left;
+  transition:opacity .18s, transform .25s cubic-bezier(.2,1.5,.4,1); z-index:7;
+}
+.bubble.show{opacity:1; transform:scale(1);}
+.bubble::after{
+  content:""; position:absolute; bottom:-9px; left:18px; border:10px solid transparent;
+  border-top-color:var(--bubble); border-bottom:0;
+}
+.paw{position:absolute; bottom:14px; font-size:20px; opacity:.85; animation:pawfade 1.7s forwards;}
+@keyframes pawfade{0%{opacity:0; transform:scale(.5)}20%{opacity:.85;transform:scale(1)}100%{opacity:0}}
+/* 旁白 */
+.narrator{
+  position:absolute; bottom:0; left:0; right:0; height:150px; z-index:8;
+  display:flex; flex-direction:column; justify-content:center; align-items:center; gap:6px;
+  background:linear-gradient(0deg,rgba(0,0,0,.55),transparent);
+  padding:0 8vw; text-align:center;
+}
+.narrator .who{font-size:11px; letter-spacing:4px; color:#e8c886;}
+.narrator .text{
+  color:#fdf3da; font-size:clamp(15px,2.2vw,21px); line-height:1.8; min-height:2.6em; font-weight:500;
+  text-shadow:0 2px 6px rgba(0,0,0,.6);
+}
+.stage-ctrl{
+  position:absolute; bottom:150px; right:18px; display:flex; flex-direction:column; gap:10px; z-index:9;
+}
+.stage-ctrl button{
+  width:46px; height:46px; border-radius:50%; background:rgba(255,250,235,.92); font-size:19px;
+  box-shadow:0 3px 10px rgba(0,0,0,.4); transition:.15s;
+}
+.stage-ctrl button:hover{transform:scale(1.12); background:#fff;}
+/* 结束页 */
+.finale{
+  position:absolute; inset:0; z-index:20; display:none; flex-direction:column;
+  align-items:center; justify-content:center; gap:14px; text-align:center; padding:24px;
+  background:radial-gradient(circle at 50% 40%,rgba(120,90,30,.5),rgba(20,14,5,.88));
+}
+.finale.on{display:flex; animation:fadein .6s;}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.finale .big-dog{font-size:90px; animation:bob 2s ease-in-out infinite;}
+.finale h2{color:#ffe9b8; font-size:26px; letter-spacing:3px;}
+.finale p{color:#e8d8b0; font-size:14px; line-height:2; max-width:560px;}
+.finale .row{display:flex; gap:12px; margin-top:10px; flex-wrap:wrap; justify-content:center;}
+.finale .btn{border-color:transparent;}
+
+/* Toast & 弹窗 */
+#toast{
+  position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px);
+  background:var(--ink); color:#fff; padding:10px 22px; border-radius:999px; font-size:14px;
+  z-index:2000; transition:transform .35s cubic-bezier(.2,1.3,.4,1); box-shadow:var(--shadow); max-width:90vw;
+}
+#toast.show{transform:translateX(-50%) translateY(0);}
+dialog{
+  border:none; border-radius:var(--radius); padding:24px 26px; max-width:380px; box-shadow:0 20px 60px rgba(0,0,0,.3);
+  background:var(--card); color:var(--ink);
+}
+dialog::backdrop{background:rgba(60,40,10,.45);}
+dialog h3{margin-bottom:10px; font-size:17px;}
+dialog p{font-size:14px; line-height:1.9; color:var(--ink-soft);}
+dialog .row{margin-top:16px; text-align:right;}
+footer{
+  text-align:center; color:var(--ink-soft); font-size:12px; padding:16px; line-height:1.9;
+  border-top:3px dashed var(--line); background:#fbf3e3;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="dog-face" id="logoDog">🐶</span>
+    <div>
+      <h1>旅行<span>汪</span></h1>
+      <p>把出去玩的照片，变成汪的足迹 —— 汪不会说人话，只会汪汪。</p>
+    </div>
+  </div>
+  <div class="header-tools">
+    <div class="dog-name-wrap" title="给你的小狗起个名字">
+      <span>🐕‍🦺</span>
+      <input id="dogName" maxlength="10" placeholder="汪的名字">
+    </div>
+    <div class="avatar-pick" id="avatarPick" title="选一只小狗">
+      <button data-av="🐶">🐶</button>
+      <button data-av="🐕">🐕</button>
+      <button data-av="🦮">🦮</button>
+      <button data-av="🐕‍🦺">🐕‍🦺</button>
+      <button data-av="🦴">🦴</button>
+    </div>
+    <button class="btn" id="translateBtn" title="试试翻译汪语">🗣 汪语翻译器</button>
+    <button class="btn" id="demoBtn">🎁 示例旅行</button>
+    <button class="btn" id="clearBtn" title="清空全部照片和足迹">🧹 清空</button>
+  </div>
+</header>
+
+<main>
+  <div class="upload-zone" id="uploadZone">
+    <span class="big-ico">📸</span>
+    <h2>把出去玩的照片丢给汪</h2>
+    <p>点击选择或直接拖进来，一次多丢几张更好 · <b>照片里有定位信息的话，汪会在地图上画出足迹</b> · 照片只在你的浏览器里处理，不会上传到任何地方</p>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" multiple>
+
+  <div class="layout">
+    <section class="panel">
+      <div class="panel-head">
+        <span>🦴 行程站点 <span id="stopCount"></span></span>
+        <span class="hint">按时间排序 · 可以改名</span>
+      </div>
+      <div class="stops" id="stopsList"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <span>🗺️ 汪的足迹</span>
+        <span class="hint" id="mapHint">有定位的照片会显示在这里</span>
+      </div>
+      <div id="map"></div>
+      <div class="stats">
+        <div class="stat"><div class="num" id="statStops">0</div><div class="lbl">站点</div></div>
+        <div class="stat"><div class="num" id="statKm">0</div><div class="lbl">总里程 km</div></div>
+        <div class="stat"><div class="num" id="statHours">0</div><div class="lbl">行程小时</div></div>
+        <div class="stat"><div class="num" id="statBarks">0</div><div class="lbl">汪叫次数</div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" style="margin-top:20px" id="traveloguePanel" hidden>
+    <div class="panel-head">
+      <span>📖 汪的游记（旁白代笔 · 汪本人只负责叫）</span>
+      <span style="display:flex; gap:8px">
+        <button class="btn" style="padding:5px 12px; font-size:12px" id="copyLog">📋 复制</button>
+        <button class="btn" style="padding:5px 12px; font-size:12px" id="replayBtn2">▶ 再放一遍</button>
+      </span>
+    </div>
+    <div class="travelogue" id="travelogue"></div>
+  </div>
+
+  <div style="text-align:center; margin-top:26px">
+    <button class="btn primary big" id="playBtn">🎒 让汪出发，把行程模拟一遍！</button>
+    <p style="font-size:12px; color:var(--ink-soft); margin-top:10px" id="playHint">至少要给汪 1 张照片哦</p>
+  </div>
+</main>
+
+<footer>
+  旅行汪 · 一个离线的小玩具：照片不离开浏览器，数据存在本地 · 汪的原则：绝不学人话 🐾
+</footer>
+
+<!-- 回放舞台 -->
+<div id="stage">
+  <div class="stars"></div>
+  <div class="stage-top">
+    <span id="stageTitle">🐾 汪的行程模拟</span>
+    <span id="stageCounter">第 1 站 / 共 1 站</span>
+  </div>
+  <div class="stage-main" id="stageMain"></div>
+  <div class="dog-zone" id="dogZone">
+    <div class="dog" id="dogEl">🐶</div>
+    <div class="bubble" id="bubbleEl"></div>
+  </div>
+  <div class="stage-ctrl">
+    <button id="prevBtn" title="上一站">⏮</button>
+    <button id="pauseBtn" title="暂停/继续">⏸</button>
+    <button id="nextBtn" title="下一站">⏭</button>
+    <button id="muteBtn" title="声音开关">🔊</button>
+    <button id="closeBtn" title="结束回放">✕</button>
+  </div>
+  <div class="narrator">
+    <div class="who">—— 旁 白 ——</div>
+    <div class="text" id="narratorText"></div>
+  </div>
+  <div class="finale" id="finale"></div>
+</div>
+
+<div id="toast"></div>
+<dialog id="translateDlg">
+  <h3>🗣 汪语翻译器</h3>
+  <p id="translateMsg">正在连接小狗的大脑……<br>连接失败：翻译器已被汪啃坏。<br>汪对本翻译功能表示强烈抗议：汪！汪汪！！</p>
+  <div class="row"><button class="btn primary" onclick="this.closest('dialog').close()">好吧</button></div>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+"use strict";
+/* ================================================================
+   旅行汪 —— 单文件网页小应用
+   照片 → 读取拍摄时间/EXIF 定位 → 汪按顺序把行程模拟一遍
+   汪的设定：不能说人话，只能汪汪叫（旁白负责有趣的叙事）
+================================================================ */
+
+const $ = s => document.querySelector(s);
+const store = {
+  key: "lvxingwang_v1",
+  load(){ try{ return JSON.parse(localStorage.getItem(this.key)) || null; }catch(e){ return null; } },
+  save(data){
+    try{ localStorage.setItem(this.key, JSON.stringify(data)); return true; }
+    catch(e){ return false; } // 缩略图太多塞不下时安静降级
+  },
+  clear(){ try{ localStorage.removeItem(this.key); }catch(e){} }
+};
+
+let stops = [];        // {id, name, time(ms|null), lat, lng, full(dataURL|内存), thumb(dataURL)}
+let fullCache = {};    // id -> 大图 dataURL（仅内存，刷新后回退用缩略图）
+let settings = { dogName:"旺财", avatar:"🐶", muted:false };
+let mapObj = null, markersLayer = null;
+
+/* ---------- 工具 ---------- */
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove("show"), 2200);
+}
+function uid(){ return (crypto.randomUUID ? crypto.randomUUID() : "id"+Date.now()+Math.random().toString(36).slice(2)); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function fmtTime(ms){
+  if(ms==null) return "";
+  const d = new Date(ms), p = n => String(n).padStart(2,"0");
+  return `${d.getMonth()+1}月${d.getDate()}日 ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function timeOfDay(ms){
+  if(ms==null) return null;
+  const h = new Date(ms).getHours();
+  if(h<5) return "deepnight"; if(h<9) return "morning"; if(h<12) return "noon";
+  if(h<14) return "lunch"; if(h<18) return "afternoon"; if(h<20) return "dusk";
+  return "night";
+}
+function haversine(a, b){
+  const R=6371, rad=Math.PI/180;
+  const dLat=(b.lat-a.lat)*rad, dLon=(b.lng-a.lng)*rad;
+  const s=Math.sin(dLat/2)**2 + Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+
+/* ---------- 汪的语言（严格禁止人话） ---------- */
+const BARKS = [
+  "汪！","汪汪！","汪汪汪！！","呜……汪？","汪汪~ 🦴","嗷呜——🌙","汪！汪汪汪汪！",
+  "汪❓","汪汪！！🐾","哼唧……汪 😤","汪~~ 🌭","汪汪汪汪汪汪！！！",
+  "（狗喘气）汪！","嗷呜~✨","汪汪·汪汪·汪 🎵","汪？？ 😮","汪。"
+];
+function barkFor(){
+  // 每个站点预生成一条固定汪语，避免刷新后回放变化
+  return pick(BARKS);
+}
+
+/* ---------- 旁白文案（人话由旁白说，不归汪管） ---------- */
+const NARR = {
+  open:[
+    "今天是特别的一天：{dog}背上小背包，尾巴翘到了极限。",
+    "出门啦！{dog}冲在全家最前面，仿佛已经闻到了远方的味道。",
+    "人类刚拿起相机，{dog}就已经站在了出发线上。"
+  ],
+  arrive:{
+    morning:["清晨的风里有露水味，{dog}在这里使劲嗅了整整一分钟。","太阳刚升起来，{dog}踩着软软的光走到这里。"],
+    noon:["太阳晒得刚好，{dog}决定在这里打个滚。","正午时分，{dog}的影子缩成一小团，但它本人觉得非常帅。"],
+    lunch:["到了饭点，{dog}的眼神开始变得真诚而恳切。","{dog}在这一站闻到了不可描述的香味（大概率是火腿肠）。"],
+    afternoon:["下午的阳光很配奔跑，{dog}的耳朵飘了起来。","{dog}郑重宣布：这一站的草地，合格！"],
+    dusk:["夕阳把{dog}的影子拉得很长很长，像一只大狗。","天边染成橘子色——在{dog}看来，整个天空都是狗粮色的。"],
+    night:["月亮出来了，{dog}压低嗓子：嗷呜——","路灯下一只夜行小狗，{dog}的脚印悄悄留在了这里。"],
+    deepnight:["深夜也不肯回家，{dog}眼睛亮晶晶地望着夜色。","万籁俱寂，只有{dog}的尾巴还在呼哧呼哧。"],
+    null_:["{dog}兴致勃勃地冲到这一站，鼻子先到。","{dog}在这里留下了一个爪印，和一根没吃完的零食。"]
+  },
+  between:[
+    "跑了 {km} 公里，{dog}的尾巴摇得像雨刮器。",
+    "从 {from} 到 {to}，共 {km} 公里，{dog}坚持全程用跑的（并没有）。",
+    "这段 {km} 公里的路上，{dog}一共被 8 个路人夸了可爱。",
+    "转移阵地！{km} 公里对{dog}来说只是两次午睡之间的距离。"
+  ],
+  firstKm:"第一站到第二站 {km} 公里，{dog}闻了闻车窗，表示满意。",
+  close:[
+    "旅程结束。{dog}一共叫了 {barks} 声，全部翻译过来是同一个意思：下次还来！",
+    "回家路上{dog}睡着了，梦里全是今天的风景。汪的旅行，未完待续 🐾",
+    "本次行程圆满结束！{dog}已瘫成一滩，正在充电，等待下一次出发。"
+  ],
+  single:[
+    "虽然只有一张照片，但{dog}坚持认为这是一场完整的冒险。",
+    "{dog}指着这张照片：汪！汪汪汪！（此处省略两千字的感想）"
+  ]
+};
+function fill(t, vars){
+  return t.replace(/\{(\w+)\}/g, (_, k)=> vars[k]!=null?vars[k]:"");
+}
+function narrFor(stop, i, prev){
+  const v = { dog: settings.dogName };
+  if(i===0) return fill(pick(stops.length===1?NARR.single:NARR.open), v);
+  if(prev && prev.lat!=null && stop.lat!=null){
+    const km = haversine(prev, stop);
+    v.km = km<1 ? km.toFixed(2) : km.toFixed(1);
+    v.from = prev.name; v.to = stop.name;
+    if(i===1 && km>0.05) return fill(NARR.firstKm, v);
+    if(km>0.05) return fill(pick(NARR.between), v);
+  }
+  const tod = timeOfDay(stop.time);
+  const pool = NARR.arrive[tod==null?"null_":tod] || NARR.arrive.null_;
+  return fill(pick(pool), v);
+}
+
+/* ---------- EXIF 解析（拍摄时间 + GPS，纯手写迷你版） ---------- */
+async function extractExif(file){
+  const out = { time:null, lat:null, lng:null, orientation:1 };
+  try{
+    if(file.type !== "image/jpeg") { // 只解析 JPEG 的 EXIF；其它格式交给文件修改时间
+      out.time = file.lastModified || null;
+      return out;
+    }
+    const buf = await file.arrayBuffer();
+    const v = new DataView(buf);
+    if(v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) { out.time = file.lastModified||null; return out; }
+    let off = 2;
+    while(off + 4 <= v.byteLength){
+      if(v.getUint8(off) !== 0xFF) break;
+      const marker = v.getUint8(off+1);
+      if(marker === 0xDA) break; // SOS，图像数据开始
+      const size = v.getUint16(off+2);
+      if(marker === 0xE1 && off+10 <= v.byteLength){
+        // 检查 "Exif\0\0"
+        if(v.getUint32(off+4) === 0x45786966 && v.getUint16(off+8) === 0x0000){
+          parseTiff(v, off+10, out);
+          break;
+        }
+      }
+      off += 2 + size;
+    }
+  }catch(e){ /* 坏图不致命 */ }
+  if(out.time == null) out.time = file.lastModified || null;
+  return out;
+}
+function parseTiff(v, base, out){
+  const le = v.getUint16(base) === 0x4949;
+  const g16 = p => v.getUint16(base+p, le);
+  const g32 = p => v.getUint32(base+p, le);
+  if(g16(2) !== 42) return;
+  const SZ = [0,1,1,2,4,8,1,1,2,4,8,4,8];
+  function readValue(p, type, count){
+    const size = SZ[type]||1;
+    let dp;
+    if(size*count <= 4) dp = p;
+    else dp = base + g32(p);
+    if(type === 2){ // ASCII
+      let s = "";
+      for(let i=0;i<count-1;i++) s += String.fromCharCode(v.getUint8(dp+i));
+      return s;
+    }
+    if(type === 5 || type === 10){ // (S)RATIONAL
+      const r = [];
+      for(let i=0;i<count;i++){
+        const n = type===5 ? g32(dp+i*8) : v.getInt32(dp+i*8, le);
+        const d = type===5 ? g32(dp+i*8+4) : v.getInt32(dp+i*8+4, le);
+        r.push(d ? n/d : 0);
+      }
+      return r;
+    }
+    if(type === 3) return g16(dp);
+    return g32(dp);
+  }
+  function walkIFD(off, tags){
+    if(off<=0 || base+off+2 > v.byteLength) return {};
+    const n = g16(off), res = {};
+    for(let i=0;i<n;i++){
+      const e = off + 2 + i*12;
+      if(base+e+12 > v.byteLength) break;
+      const tag = g16(e), type = g16(e+2), count = g32(e+4);
+      if(tags.includes(tag)) res[tag] = { type, count, value: readValue(e+8, type, count) };
+      if(tag === 0x8769 && !res._exif) res._exif = g32(e+8);
+      if(tag === 0x8825 && !res._gps)  res._gps  = g32(e+8);
+    }
+    return res;
+  }
+  const ifd0 = walkIFD(8, [0x0112, 0x0132, 0x9003]);
+  if(ifd0[0x0112]) out.orientation = ifd0[0x0112].value;
+  // 拍摄时间：ExifIFD 的 DateTimeOriginal 优先，再退 IFD0
+  if(ifd0._exif){
+    const ex = walkIFD(ifd0._exif, [0x9003]);
+    if(ex[0x9003]) out.time = parseExifDate(ex[0x9003].value) || out.time;
+  }
+  if(out.time == null && ifd0[0x0132]) out.time = parseExifDate(ifd0[0x0132].value);
+  // GPS
+  if(ifd0._gps){
+    const g = walkIFD(ifd0._gps, [1,2,3,4]);
+    try{
+      const lat = g[2] && g[2].value, latRef = g[1] && g[1].value;
+      const lng = g[4] && g[4].value, lngRef = g[3] && g[3].value;
+      if(Array.isArray(lat) && latRef){
+        const la = lat[0]+lat[1]/60+lat[2]/3600;
+        const ln = Array.isArray(lng) ? (lng[0]+lng[1]/60+lng[2]/3600) : null;
+        if(ln != null){
+          out.lat = (latRef[0]==="S"||latRef[0]==="s") ? -la : la;
+          out.lng = (lngRef[0]==="W"||lngRef[0]==="w") ? -ln : ln;
+        }
+      }
+    }catch(e){}
+  }
+}
+function parseExifDate(s){
+  if(typeof s !== "string") return null;
+  const m = s.match(/^(\d{4})[:-](\d{2})[:-](\d{2})[ T]?(\d{2}):(\d{2}):(\d{2})/);
+  if(!m) return null;
+  const t = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  return isNaN(t) ? null : t;
+}
+
+/* ---------- 图片处理：按 EXIF 方向摆正 + 压缩成两种尺寸 ---------- */
+function applyOrientation(ctx, w, h, orientation){
+  // 已按目标画布 w×h 画；这里负责在画之前旋转坐标系
+  switch(orientation){
+    case 2: ctx.translate(w,0); ctx.scale(-1,1); break;
+    case 3: ctx.translate(w,h); ctx.rotate(Math.PI); break;
+    case 4: ctx.translate(0,h); ctx.scale(1,-1); break;
+    case 5: ctx.rotate(Math.PI/2); ctx.scale(1,-1); break;
+    case 6: ctx.translate(h,0); ctx.rotate(Math.PI/2); break;
+    case 7: ctx.rotate(Math.PI/2); ctx.translate(w,0); ctx.scale(-1,1); break;
+    case 8: ctx.translate(0,w); ctx.rotate(-Math.PI/2); break;
+  }
+}
+async function processImage(file, exif){
+  const bmp = await createImageBitmap(file).catch(()=>null);
+  const url = URL.createObjectURL(file);
+  const src = bmp || await new Promise((res, rej)=>{ const im = new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=url; });
+  URL.revokeObjectURL(url);
+  const sw = bmp ? bmp.width : src.naturalWidth, sh = bmp ? bmp.height : src.naturalHeight;
+  const rot = exif.orientation>=5; // 6/8 时宽高互换
+  const dims = (max)=>{
+    const s = Math.min(1, max / Math.max(rot?sh:sw, rot?sw:sh));
+    return { w: Math.round((rot?sh:sw)*s), h: Math.round((rot?sw:sh)*s) };
+  };
+  function draw(max, quality){
+    const {w,h} = dims(max);
+    const c = document.createElement("canvas"); c.width=w; c.height=h;
+    const ctx = c.getContext("2d");
+    ctx.save(); applyOrientation(ctx, w, h, exif.orientation);
+    ctx.drawImage(src, 0, 0, w, h); ctx.restore();
+    return c.toDataURL("image/jpeg", quality);
+  }
+  return { full: draw(1280, .86), thumb: draw(200, .7) };
+}
+
+/* ---------- 添加照片 ---------- */
+async function addFiles(fileList){
+  const files = [...fileList].filter(f => f.type.startsWith("image/"));
+  if(!files.length){ toast("汪没有找到照片 🐶"); return; }
+  toast(`汪正在闻这些照片……（${files.length} 张）`);
+  for(const f of files){
+    const exif = await extractExif(f);
+    const { full, thumb } = await processImage(f, exif);
+    stops.push({
+      id: uid(), name: "第 " + "一二三四五六七八九十"[Math.min(stops.length,9)] + " 站",
+      time: exif.time, lat: exif.lat, lng: exif.lng,
+      full, thumb, bark: barkFor()
+    });
+    renderStops();
+  }
+  sortIfTimed(true);
+  persist(); refreshAll();
+  toast(`汪收下了 ${files.length} 张照片！汪！🐾`);
+}
+let askedSort = false;
+function sortIfTimed(auto){
+  const timed = stops.filter(s=>s.time!=null).length;
+  if(timed >= 2){
+    const sorted = [...stops].sort((a,b)=>(a.time??Infinity)-(b.time??Infinity));
+    const changed = sorted.some((s,i)=>s!==stops[i]);
+    if(changed){
+      stops = sorted;
+      if(!auto || !askedSort){ askedSort = true; toast("汪按照片的拍摄时间排好了队 ⏱"); }
+    }
+  }
+  stops.forEach((s,i)=>{ if(/^第 . 站$/.test(s.name)) s.name = "第 "+"一二三四五六七八九十"[Math.min(i,9)]+" 站"; });
+}
+
+/* ---------- 渲染 ---------- */
+function renderStops(){
+  const box = $("#stopsList"); box.innerHTML = "";
+  $("#stopCount").textContent = stops.length ? `(${stops.length})` : "";
+  if(!stops.length){
+    box.innerHTML = `<div class="empty-tip">汪的行囊还空空的<br>丢几张照片进来，汪就出发 🐾</div>`;
+    return;
+  }
+  stops.forEach((s, i)=>{
+    const el = document.createElement("div");
+    el.className = "stop-card";
+    el.innerHTML = `
+      <div class="idx">${i+1}</div>
+      <img src="${s.thumb}" alt="">
+      <div class="info">
+        <input value="${s.name.replace(/"/g,"&quot;")}" maxlength="20" title="给这一站起个名字">
+        <div class="meta">
+          ${s.time!=null ? `<span>⏱ ${fmtTime(s.time)}</span>` : `<span>⏱ 时间未知</span>`}
+          ${s.lat!=null ? `<span>📍 已定位</span>` : `<span>📍 没有定位</span>`}
+          <span class="bark">🗣 ${s.bark}</span>
+        </div>
+      </div>
+      <div class="ops">
+        <button class="up" title="上移">▲</button>
+        <button class="down" title="下移">▼</button>
+        <button class="del" title="删除">🗑</button>
+      </div>`;
+    el.querySelector("input").addEventListener("change", e=>{ s.name = e.target.value.trim() || s.name; persist(); refreshAll(); });
+    el.querySelector(".up").onclick = ()=>{ if(i>0){ [stops[i-1],stops[i]]=[stops[i],stops[i-1]]; renderStops(); persist(); refreshAll(); } };
+    el.querySelector(".down").onclick = ()=>{ if(i<stops.length-1){ [stops[i+1],stops[i]]=[stops[i],stops[i+1]]; renderStops(); persist(); refreshAll(); } };
+    el.querySelector(".del").onclick = ()=>{
+      stops = stops.filter(x=>x!==s); delete fullCache[s.id];
+      renderStops(); persist(); refreshAll();
+    };
+    box.appendChild(el);
+  });
+}
+
+function renderMap(){
+  const box = $("#map");
+  const geo = stops.filter(s=>s.lat!=null && s.lng!=null);
+  $("#mapHint").textContent = geo.length ? `${geo.length} 个站点有定位` : "有定位的照片会显示在这里";
+  if(typeof L === "undefined"){
+    box.innerHTML = `<div class="map-fallback">
+      <span class="pawline">🐾 🐾 🐾</span>
+      地图组件没连上网，先看示意足迹：<br>
+      ${geo.map(s=>`<div>${s.name} 📍${s.lat.toFixed(3)}, ${s.lng.toFixed(3)}</div>`).join("") || "（还没有带定位的照片）"}
+    </div>`;
+    return;
+  }
+  if(!mapObj){
+    mapObj = L.map(box, { zoomControl:true, attributionControl:false });
+    // 瓦片源依序回退：高德（国内稳、中文标注）→ Carto → OSM
+    const tileSources = [
+      "https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}",
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    ];
+    let tileIdx = 0, errCount = 0, tileLayer = null;
+    function useLayer(i){
+      if(i >= tileSources.length) return;
+      if(tileLayer) mapObj.removeLayer(tileLayer);
+      errCount = 0;
+      tileLayer = L.tileLayer(tileSources[i], {
+        maxZoom:18, subdomains: i===0 ? ["1","2","3","4"] : "abc",
+        crossOrigin: true
+      }).addTo(mapObj);
+      tileLayer.on("tileerror", ()=>{
+        // 连续多块瓦片失败才切换，避免单块偶发失败
+        if(++errCount >= 4 && tileIdx < tileSources.length-1){ tileIdx++; useLayer(tileIdx); }
+      });
+    }
+    useLayer(0);
+    markersLayer = L.layerGroup().addTo(mapObj);
+  }
+  mapObj.invalidateSize();
+  markersLayer.clearLayers();
+  geo.forEach((s, i)=>{
+    L.marker([s.lat, s.lng], {
+      icon: L.divIcon({ className:"", html:
+        `<div style="background:var(--accent-deep);color:#fff;font-weight:800;font-size:12px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">${i+1}</div>`,
+        iconSize:[24,24], iconAnchor:[12,12]})
+    }).addTo(markersLayer).bindPopup(`<b>${s.name}</b><br><img src="${s.thumb}" style="max-width:130px;border-radius:6px">`);
+  });
+  if(geo.length >= 2){
+    L.polyline(geo.map(s=>[s.lat,s.lng]), { color:"#e8892b", weight:3, dashArray:"8 8", opacity:.85 }).addTo(markersLayer);
+  }
+  if(geo.length){
+    mapObj.fitBounds(geo.map(s=>[s.lat,s.lng]), { padding:[40,40], maxZoom:14 });
+  }
+}
+
+function renderStats(){
+  const geo = stops.filter(s=>s.lat!=null && s.lng!=null);
+  let km = 0; for(let i=1;i<geo.length;i++) km += haversine(geo[i-1], geo[i]);
+  const ts = stops.map(s=>s.time).filter(t=>t!=null);
+  const hours = ts.length>=2 ? Math.max(0, (Math.max(...ts)-Math.min(...ts))/36e5) : 0;
+  $("#statStops").textContent = stops.length;
+  $("#statKm").textContent = km>=1 ? km.toFixed(1) : km.toFixed(2);
+  $("#statHours").textContent = hours.toFixed(1);
+  $("#statBarks").textContent = stops.length * 3; // 每站汪都热情地叫了三声
+  const canPlay = stops.length > 0;
+  $("#playBtn").disabled = !canPlay;
+  $("#playHint").textContent = canPlay
+    ? "汪会把每一站的照片挨个搬出来重演，配上旁白和汪汪 🐾"
+    : "至少要给汪 1 张照片哦";
+}
+
+function renderTravelogue(){
+  const panel = $("#traveloguePanel"), box = $("#travelogue");
+  if(!stops.length){ panel.hidden = true; return; }
+  panel.hidden = false;
+  const lines = buildLogLines();
+  box.innerHTML = `<div class="voice">（汪本人全程只负责"汪汪"，以下由热心旁白代笔）</div>` +
+    lines.map(t=>`<p>${t}</p>`).join("") + `<div class="paw-divider">🐾 🐾 🐾</div>`;
+}
+function buildLogLines(){
+  const out = [];
+  if(!stops.length) return out;
+  out.push(narrFor(stops[0], 0));
+  for(let i=1;i<stops.length;i++){
+    out.push(`<b>${i+1}. ${stops[i].name}</b> —— ${narrFor(stops[i], i, stops[i-1])}`);
+    out.push(`<span class="bark-line">${settings.dogName}：「${stops[i].bark}」</span>`);
+  }
+  const geo = stops.filter(s=>s.lat!=null && s.lng!=null);
+  let km = 0; for(let i=1;i<geo.length;i++) km += haversine(geo[i-1], geo[i]);
+  const v = { dog: settings.dogName, barks: stops.length*3, km: km>=1?km.toFixed(1):km.toFixed(2) };
+  out.push(fill(pick(NARR.close), v));
+  return out;
+}
+function refreshAll(){ renderStats(); renderMap(); renderTravelogue(); }
+
+/* ---------- 持久化 ---------- */
+function persist(){
+  const data = {
+    settings,
+    stops: stops.map(s=>({ id:s.id, name:s.name, time:s.time, lat:s.lat, lng:s.lng, thumb:s.thumb, bark:s.bark }))
+  };
+  store.save(data); // 塞不下就算了，大图本来也只在内存里
+}
+function restore(){
+  const d = store.load();
+  if(!d) return false;
+  if(d.settings) settings = { ...settings, ...d.settings };
+  if(Array.isArray(d.stops) && d.stops.length){
+    stops = d.stops; // 大图刷新后丢失，回放会自动改用缩略图
+    return true;
+  }
+  return false;
+}
+
+/* ---------- 回放舞台 ---------- */
+const stage = {
+  i:0, playing:false, paused:false, timers:[], open:false,
+  show(){ $("#stage").classList.add("on"); this.open = true; },
+  hide(){
+    $("#stage").classList.remove("on"); this.open=false; this.stopTimers();
+    $("#finale").classList.remove("on"); $("#dogEl").style.left="6%";
+  },
+  stopTimers(){ this.timers.forEach(clearTimeout); this.timers=[]; },
+  later(fn, ms){ this.timers.push(setTimeout(fn, ms)); }
+};
+function currentImg(s){ return fullCache[s.id] || s.thumb || s.full; }
+
+/* 小狗从画面左侧小跑进场（每一站都精神抖擞地跑一次） */
+function trotIn(){
+  const dogEl = $("#dogEl"), bubble = $("#bubbleEl");
+  bubble.classList.remove("show");
+  dogEl.style.transition = "none";
+  dogEl.classList.remove("walking");
+  dogEl.style.opacity = "0";
+  dogEl.style.left = "-9%";
+  void dogEl.offsetWidth; // 让位置瞬移先生效，再恢复过渡动画
+  dogEl.style.transition = "";
+  stage.later(()=>{
+    dogEl.style.opacity = "1";
+    dogEl.style.transform = "scaleX(1)";
+    dogEl.classList.add("walking");
+    dogEl.style.left = "6%";
+    stage.later(()=>dogEl.classList.remove("walking"), 1300);
+  }, 250);
+}
+
+function playFrom(i){
+  if(!stops.length) return;
+  stage.i = Math.max(0, Math.min(i, stops.length-1));
+  stage.show(); stage.playing = true; stage.paused = false;
+  $("#pauseBtn").textContent = "⏸";
+  showStop(stage.i);
+}
+function showStop(i){
+  stage.stopTimers();
+  const s = stops[i], dog = settings.dogName;
+  $("#stageCounter").textContent = `第 ${i+1} 站 / 共 ${stops.length} 站`;
+  $("#stageTitle").textContent = `🐾 ${dog}的行程模拟`;
+  $("#stageMain").innerHTML = `
+    <div class="polaroid" style="animation:none">
+      <img src="${currentImg(s)}" alt="${s.name}">
+      <div class="cap"><span>${i+1} · ${s.name}</span><span class="t">${fmtTime(s.time) || "时间已失忆"}</span></div>
+    </div>`;
+  trotIn();
+  const dogEl = $("#dogEl");
+  // 汪语气泡（只许汪叫！）
+  const bubble = $("#bubbleEl");
+  bubble.textContent = s.bark;
+  bubble.classList.remove("show");
+  stage.later(()=>bubble.classList.add("show"), 500);
+  stage.later(()=>bubble.classList.remove("show"), 2400);
+  stage.later(()=>{ if(settings.muted===false) barkSound(); }, 550);
+  // 旁白打字机
+  const line = narrFor(s, i, i>0?stops[i-1]:null);
+  typeText(line);
+  // 自动下一站
+  if(i < stops.length-1){
+    stage.later(()=>{ if(!stage.paused) walkTo(i+1); }, 4600);
+  }else{
+    stage.later(()=>{ if(!stage.paused) showFinale(); }, 5200);
+  }
+}
+function walkTo(next){
+  stage.stopTimers();
+  const dogEl = $("#dogEl");
+  dogEl.classList.add("walking");
+  // 爪印
+  const zone = $("#dogZone");
+  for(let k=0;k<7;k++){
+    stage.later(()=>{
+      const p = document.createElement("div");
+      p.className = "paw"; p.textContent = k%2 ? "🐾" : "🐾";
+      p.style.left = `calc(6% + ${(next>stage.i?1:-1) * k * 9}%)`;
+      p.style.transform = `scaleX(${next>stage.i?1:-1}) rotate(${(k%2?-12:8)}deg)`;
+      zone.appendChild(p);
+      setTimeout(()=>p.remove(), 1700);
+    }, k*180);
+  }
+  const dir = next > stage.i ? 1 : -1;
+  dogEl.style.transform = `scaleX(${dir})`;
+  dogEl.style.left = dir>0 ? "78%" : "6%";
+  if(settings.muted===false) stage.later(()=>barkSound(), 300);
+  stage.later(()=>{
+    dogEl.classList.remove("walking");
+    dogEl.style.transform = dir>0 ? "scaleX(-1)" : "scaleX(1)"; // 回头看镜头
+    stage.i = next;
+    showStop(next);
+  }, 1700);
+}
+function showFinale(){
+  stage.stopTimers();
+  const geo = stops.filter(s=>s.lat!=null && s.lng!=null);
+  let km = 0; for(let i=1;i<geo.length;i++) km += haversine(geo[i-1], geo[i]);
+  const hours = (()=>{ const ts=stops.map(s=>s.time).filter(t=>t!=null);
+    return ts.length>=2 ? ((Math.max(...ts)-Math.min(...ts))/36e5) : 0; })();
+  const f = $("#finale");
+  f.innerHTML = `
+    <div class="big-dog">${settings.avatar}</div>
+    <h2>行程模拟完毕！</h2>
+    <p>
+      ${settings.dogName}走过了 <b>${stops.length}</b> 站${geo.length>=2?`，地图上画出了 <b>${km>=1?km.toFixed(1):km.toFixed(2)}</b> 公里`:``}
+      ${hours>=1?`，从白天玩到天黑（约 ${hours.toFixed(1)} 小时）`:``}。<br>
+      全程汪叫 <b>${stops.length*3}</b> 声，语义均为：「这次旅行太棒了，请再来一次」。<br>
+      完整游记已经写在下面的「汪的游记」里啦 📖
+    </p>
+    <div class="row">
+      <button class="btn primary" id="finaleReplay">▶ 再看一遍</button>
+      <button class="btn" id="finaleClose">收工回家 🏠</button>
+    </div>`;
+  f.classList.add("on");
+  $("#finaleReplay").onclick = ()=>{ f.classList.remove("on"); playFrom(0); };
+  $("#finaleClose").onclick = ()=>{ stage.hide(); };
+  renderTravelogue();
+}
+function typeText(text){
+  const el = $("#narratorText");
+  el.textContent = ""; let i = 0;
+  const step = Math.max(1, Math.round(text.length/60));
+  (function tick(){
+    if(stage.paused && stage.open) { stage.later(tick, 200); return; }
+    i = Math.min(text.length, i+step);
+    el.textContent = text.slice(0, i);
+    if(i < text.length) stage.later(tick, 55);
+  })();
+}
+
+/* ---------- 汪叫声（WebAudio 现场合成，不联网） ---------- */
+let audioCtx = null;
+function barkSound(){
+  if(settings.muted) return;
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    [[0, 520+Math.random()*160],[0.19, 460+Math.random()*140]].forEach(([dt, f])=>{
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(f*1.6, t0+dt);
+      o.frequency.exponentialRampToValueAtTime(f*0.55, t0+dt+0.13);
+      g.gain.setValueAtTime(0.0001, t0+dt);
+      g.gain.exponentialRampToValueAtTime(0.22, t0+dt+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+dt+0.15);
+      o.connect(g).connect(audioCtx.destination);
+      o.start(t0+dt); o.stop(t0+dt+0.17);
+    });
+  }catch(e){}
+}
+
+/* ---------- 示例旅行（Canvas 画的假照片，不联网） ---------- */
+function demoTrip(){
+  const scenes = [
+    { name:"断桥残雪", lat:30.2589, lng:120.1503, hour:9,  sky:["#ffd9a0","#ffb08a"], ground:"#7fb069", prop:"🌉" },
+    { name:"西湖边",   lat:30.2423, lng:120.1482, hour:11, sky:["#ffe9b8","#a8d8ea"], ground:"#8fc07a", prop:"🌊" },
+    { name:"知味观",   lat:30.2531, lng:120.1633, hour:12, sky:["#fff3d6","#f4a83d"], ground:"#c98d5e", prop:"🍲" },
+    { name:"龙井村",   lat:30.2212, lng:120.1098, hour:15, sky:["#d4f0c0","#8fc07a"], ground:"#5f9a4c", prop:"🍃" },
+    { name:"雷峰塔",   lat:30.2322, lng:120.1489, hour:18, sky:["#ffb08a","#e86a5a"], ground:"#6b7a5a", prop:"🗼" },
+  ];
+  stops = scenes.map((sc, i)=>{
+    const t = new Date(); t.setHours(sc.hour, i*17%60, 0, 0);
+    return { id: uid(), name: sc.name, time: t.getTime(), lat: sc.lat, lng: sc.lng, bark: barkFor(),
+      full: demoPhoto(sc), thumb: demoPhoto(sc, 220) };
+  });
+  persist(); renderStops(); refreshAll();
+  toast("汪叼来了一趟示例旅行！点下面的按钮出发 🎒");
+}
+function demoPhoto(sc, maxSide){
+  const w = maxSide||720, h = Math.round(w*0.66);
+  const c = document.createElement("canvas"); c.width=w; c.height=h;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0,0,0,h*0.7);
+  g.addColorStop(0, sc.sky[0]); g.addColorStop(1, sc.sky[1]);
+  x.fillStyle = g; x.fillRect(0,0,w,h*0.7);
+  x.fillStyle = sc.ground; x.fillRect(0, h*0.7, w, h*0.3);
+  x.font = `${h*0.34}px serif`; x.textAlign="center";
+  x.fillText(sc.prop, w/2, h*0.55);
+  x.fillStyle="rgba(255,255,255,.9)";
+  x.font = `bold ${w*0.06}px sans-serif`;
+  x.fillText("「示例照片 · "+sc.name+"」", w/2, h*0.93);
+  return c.toDataURL("image/jpeg", .8);
+}
+
+/* ---------- 事件绑定 ---------- */
+$("#uploadZone").addEventListener("click", ()=>$("#fileInput").click());
+$("#fileInput").addEventListener("change", e=>{ addFiles(e.target.files); e.target.value=""; });
+["dragover","dragenter"].forEach(ev=>$("#uploadZone").addEventListener(ev, e=>{ e.preventDefault(); $("#uploadZone").classList.add("drag"); }));
+["dragleave","drop"].forEach(ev=>$("#uploadZone").addEventListener(ev, e=>{ e.preventDefault(); $("#uploadZone").classList.remove("drag"); }));
+$("#uploadZone").addEventListener("drop", e=>addFiles(e.dataTransfer.files));
+
+$("#playBtn").addEventListener("click", ()=>playFrom(0));
+$("#replayBtn2").addEventListener("click", ()=>playFrom(0));
+$("#demoBtn").addEventListener("click", demoTrip);
+$("#translateBtn").addEventListener("click", ()=>{
+  $("#translateMsg").innerHTML = pick([
+    "正在连接小狗的大脑……<br>连接失败：翻译器已被汪啃坏。<br>汪对此表示强烈抗议：汪！汪汪！！",
+    "翻译结果：汪。汪汪汪。汪！<br>（本次翻译消耗狗粮 3 颗，语义仅供参考）<br>总之汪的意思大概是：很开心。",
+    "错误 404：汪语翻译器被汪埋进了后院。<br>汪表示人话太难学，还是汪汪比较舒服 🐾"
+  ]);
+  $("#translateDlg").showModal();
+});
+$("#clearBtn").addEventListener("click", ()=>{
+  if(!stops.length){ toast("本来就没有东西可清，汪很干净 🐶"); return; }
+  if(!confirm("确定要清空全部照片和足迹吗？汪会舍不得的。")) return;
+  stops = []; fullCache = {}; store.clear();
+  renderStops(); refreshAll();
+  toast("清空啦。汪拍拍身上的土，等待新旅行。");
+});
+
+$("#dogName").addEventListener("change", e=>{
+  settings.dogName = e.target.value.trim() || "旺财";
+  e.target.value = settings.dogName;
+  persist(); renderTravelogue();
+});
+$("#avatarPick").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  settings.avatar = b.dataset.av;
+  $("#logoDog").textContent = settings.avatar;
+  $("#dogEl").textContent = settings.avatar;
+  [...$("#avatarPick").children].forEach(x=>x.classList.toggle("on", x===b));
+  persist();
+});
+$("#muteBtn").addEventListener("click", ()=>{
+  settings.muted = !settings.muted;
+  $("#muteBtn").textContent = settings.muted ? "🔇" : "🔊";
+  persist();
+});
+$("#pauseBtn").addEventListener("click", ()=>{
+  stage.paused = !stage.paused;
+  $("#pauseBtn").textContent = stage.paused ? "▶" : "⏸";
+  if(!stage.paused && stage.open && !$("#finale").classList.contains("on")){
+    showStop(stage.i); // 恢复时重播当前站，续上自动前进
+  }
+});
+$("#prevBtn").addEventListener("click", ()=>{
+  stage.paused = false; $("#pauseBtn").textContent = "⏸";
+  if(stage.i > 0){ stage.i--; showStop(stage.i); }
+});
+$("#nextBtn").addEventListener("click", ()=>{
+  stage.paused=false; $("#pauseBtn").textContent="⏸";
+  if(stage.i < stops.length-1) walkTo(stage.i+1); else showFinale();
+});
+$("#closeBtn").addEventListener("click", ()=>stage.hide());
+$("#copyLog").addEventListener("click", async ()=>{
+  const lines = buildLogLines()
+    .map(t=>t.replace(/<[^>]+>/g,""))
+    .join("\n\n");
+  const head = `🐾 ${settings.dogName}的旅行游记（旅行汪 出品）\n\n`;
+  try{ await navigator.clipboard.writeText(head+lines); toast("游记已复制，快去发给朋友们！"); }
+  catch(e){ toast("复制失败，浏览器不允许……"); }
+});
+document.addEventListener("keydown", e=>{
+  if(!stage.open) return;
+  if(e.key === "Escape") stage.hide();
+  if(e.key === "ArrowRight") $("#nextBtn").click();
+  if(e.key === "ArrowLeft") $("#prevBtn").click();
+  if(e.key === " ") { e.preventDefault(); $("#pauseBtn").click(); }
+});
+
+/* ---------- 启动 ---------- */
+(function init(){
+  const had = restore();
+  $("#dogName").value = settings.dogName;
+  $("#logoDog").textContent = settings.avatar;
+  $("#dogEl").textContent = settings.avatar;
+  $("#muteBtn").textContent = settings.muted ? "🔇" : "🔊";
+  [...$("#avatarPick").children].forEach(b=>b.classList.toggle("on", b.dataset.av===settings.avatar));
+  renderStops(); refreshAll();
+  if(!had) toast("欢迎来到旅行汪！丢几张照片，或者先看看示例旅行 🐾");
+})();
+</script>
+</body>
+</html>
